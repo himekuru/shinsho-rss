@@ -1,0 +1,69 @@
+name: Update RSS
+
+on:
+  schedule:
+    - cron: "15 21 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Setup Rust
+        run: |
+          rustup update stable
+          rustup default stable
+
+      - name: Restore previous state
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --location \
+            "${{ steps.pages.outputs.base_url }}/state.json" \
+            --output state.json || rm -f state.json
+
+      - name: Fetch new books and generate RSS
+        env:
+          FEED_LINK: "${{ steps.pages.outputs.base_url }}/shinsho.xml"
+        run: cargo run --release
+
+      - name: Prepare Pages files
+        run: |
+          mkdir -p public
+          cp shinsho.xml public/shinsho.xml
+          cp state.json public/state.json
+          cp site/index.html public/index.html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: public
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
