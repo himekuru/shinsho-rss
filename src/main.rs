@@ -228,10 +228,13 @@ async fn fetch_chuko(client: &Client, state: &State) -> Result<Vec<Book>> {
         let subtitle = text_first(row, &subtitle_sel).unwrap_or_default();
         let author = text_first(row, &author_sel).unwrap_or_default();
         let publication_date = row
-            .select(&desc_sel)
-            .filter_map(|e| date_re.captures(&element_text(e)))
-            .find_map(|c| ymd_caps(&c));
-
+    .select(&desc_sel)
+    .filter_map(|e| {
+        let text = element_text(e);
+        date_re.captures(&text).and_then(|c| ymd_caps(&c))
+    })
+    .next();
+        
         let isbn = if let Some(old) = state.books.get(&id).and_then(|b| b.isbn.clone()) {
             Some(old)
         } else {
